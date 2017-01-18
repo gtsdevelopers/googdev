@@ -12,10 +12,14 @@ import getpass
 import os
 from tkFileDialog import Directory
 from __builtin__ import file
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 
-path = '/var/goog_folders/FCMB/afterjan8/Label_18'
+path = '/var/goog_folders/FCMB'
 format = '%d-%b-%Y %H:%M:%S'
+BANK = 'FCMB'
+SUBFOLDER = (datetime.today() - timedelta(days=1)).strftime("%Y%m%d")
+path = path + '/' + SUBFOLDER
 # PASSWORD = getpass.getpass()
 
 def is_date(string):
@@ -47,7 +51,7 @@ def process_file():
                     
                     # print text
                     if is_date(text):
-                        textdt = datetime.datetime.strptime(text,format)
+                        textdt = datetime.strptime(text,format)
                         prt = prt + textdt.strftime("%d-%b-%Y") + ","
                     
                     elif ('Credit' in text):                        
@@ -71,6 +75,7 @@ def process_file():
                 if ('Date/time' in text) or ('Description' in text) or ('Amount' in text) or ('Credit/Debit' in text):
                     process_nextline = 1
                     
+            prt = prt +',' + BANK
             print prt
             
                 

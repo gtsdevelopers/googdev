@@ -13,10 +13,15 @@ import os
 from tkFileDialog import Directory
 from __builtin__ import file
 from bs4 import BeautifulSoup
+from datetime import datetime, timedelta
 
-path = '/var/goog_folders/Label_18'
+path = '/var/goog_folders/STANBIC'
 format = '%m-%d-%Y %H:%M:%S %p'
 # PASSWORD = getpass.getpass()
+BANK = 'STANBICIBTC'
+
+SUBFOLDER = (datetime.today() - timedelta(days=1)).strftime("%Y%m%d")
+path = path + '/' + SUBFOLDER
 
 def is_date(string):
     try: 
@@ -73,6 +78,7 @@ def process_file():
                 if ('Ref. Number' in text) or ('Description' in text) or ('Amount' in text) or ('Transaction Type' in text):
                     process_nextline = 1
                     
+            prt = prt  + BANK
             print prt
             
                 

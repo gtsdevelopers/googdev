@@ -9,6 +9,7 @@ from oauth2client.file import Storage
 import base64
 import email
 import datetime
+from datetime import datetime, timedelta
 from apiclient import errors
 
 
@@ -24,24 +25,26 @@ SCOPES = 'https://www.googleapis.com/auth/gmail.readonly'
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'Gmail API Python Quickstart'
 
-EMAIL_FOLDER = "FCMB CREDIT"
-detach_dir = '/var/goog_folders'
+EMAIL_FOLDER = "FIDO CREDIT"
+detach_dir = '/var/goog_folders/STANBIC'
 if not os.path.exists(detach_dir):
     os.makedirs(detach_dir)
 
-OUTPUT_DIRECTORY = detach_dir 
+OUTPUT_DIRECTORY = detach_dir
+SUBFOLDER = (datetime.today() - timedelta(days=1)).strftime("%Y%m%d") 
 MCOUNT = 1
-""" DATEAFTER INCLUSIVE but DATEBEFORE not INCLUDED """
-#DATEAFTER = '2017/1/12'
-DATEAFTER = ''
+DATEAFTER = datetime.today() - timedelta(days=1)
+DATEAFTER = DATEAFTER.strftime("%Y/%m/%d")
+DATEAFTER = ' after:' + DATEAFTER
+print('Date after is %s' % DATEAFTER)
 # DATEBEFORE = '2017/1/13'
-DATEBEFORE = ''
+DATEBEFORE = datetime.today() + timedelta(days=1)
+DATEBEFORE = DATEBEFORE.strftime("%Y/%m/%d")
+DATEBEFORE = ' before:' + DATEBEFORE
+print('Date Before is %s' % DATEBEFORE)
 QUERYSTMT = 'label:fido-credit from:(StanbicIBTC-E-Alert@stanbic.com) (Transaction Type Credit) -Debit '
-# QUERYSTMT = QUERYSTMT + DATEAFTER +' before:' + DATEBEFORE 
 
-# if 'fcmb' not in os.listdir(detach_dir):
-#    os.mkdir(OUTPUT_DIRECTORY)
-
+QUERYSTMT = QUERYSTMT + DATEAFTER + DATEBEFORE 
 
 
 def get_credentials():
@@ -87,8 +90,8 @@ def GetMessage(service, user_id, msg_id,labelid,num):
     try:
         message = service.users().messages().get(userId=user_id, id=msg_id).execute()
         print('Message snippet: %s' % message['snippet'])
-        OUTDIR = OUTPUT_DIRECTORY + '/' + labelid
-        if labelid not in os.listdir(OUTDIR):
+        OUTDIR = OUTPUT_DIRECTORY + '/' + SUBFOLDER
+        if SUBFOLDER not in os.listdir(OUTDIR):
             os.mkdir(OUTDIR)
         f = open('%s/%s.eml' %(OUTDIR, num), 'wb')
         f.write(message['snippet'])
@@ -123,8 +126,8 @@ def GetMimeMessage(service, user_id, msg_id,labelid,num):
         """
         
         msg_str = base64.urlsafe_b64decode(message['raw'].encode('ASCII'))
-        OUTDIR = OUTPUT_DIRECTORY + '/' + labelid 
-        if labelid not in os.listdir(OUTPUT_DIRECTORY):
+        OUTDIR = OUTPUT_DIRECTORY + '/' + SUBFOLDER 
+        if SUBFOLDER not in os.listdir(OUTPUT_DIRECTORY):
             os.mkdir(OUTDIR)
         filename = OUTDIR + '/' + str(num) + '.eml'
         f = open('%s' % filename, 'wb')
