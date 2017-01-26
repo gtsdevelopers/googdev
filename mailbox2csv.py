@@ -32,8 +32,6 @@ def is_date(string):
         return True
     except ValueError:
         return False
-    
-
 
 try:
     import argparse
@@ -56,7 +54,7 @@ if not os.path.exists(detach_dir):
 
 #BANKNAME = 'GTBANK'
 #BANKNAME = 'FCMB'
-BANKNAME = 'STANBIC'
+BANKNAME = 'GTBANK'
 
 OUTPUT_DIRECTORY = detach_dir
 SUBFOLDER = (datetime.today() - timedelta(days=1)).strftime("%Y%m%d") 
@@ -142,7 +140,11 @@ def process_gtb(message):
     bankname = 'GTBANK'
     result = "Date,Description,Amount,Credit,BANK\n"
     prt = {}
-    prtt = ""
+    prt['Date'] = ""
+    prt['Amount'] = ""
+    prt['Name'] = ""    
+    prt['Credit'] = ""
+    prtt = ""    
     encoding = None
     soup = BeautifulSoup(message,'html.parser')
                     
@@ -188,22 +190,42 @@ def process_gtb(message):
 def process_fcmb(message):
     bankname = 'FCMB'
     result = "Date,Description,Amount,Credit,BANK\n"
-    prt = ""
+    prt = {}
+    prt['Date'] = ""
+    prt['Amount'] = ""
+    prt['Name'] = ""    
+    prt['Credit'] = ""
+    prtt = ""    
     soup = BeautifulSoup(message,'html.parser')
-            
-    stext = ""
             
     process_nextline = 0
     for text in soup.stripped_strings:
-        text = text.encode('ascii',errors='ignore')               
-                
+        text = text.encode('ascii',errors='ignore')
+                       
+        if ('Date/time' in text):
+            process_nextline = 1
+            data = 'Date'
+            continue 
+        
+        if ('Description' in text):
+            process_nextline = 1
+            data = 'Name'
+            continue
+        
+        if ('Amount' in text):
+            process_nextline = 1
+            data = 'Amount'
+            continue 
+        
+        if ('Credit/Debit' in text):
+            process_nextline = 1
+            data = 'Credit'
+            continue
+
         if process_nextline == 1:
             if is_date(text):
                 textdt = datetime.strptime(text,format)
-                prt = prt + textdt.strftime("%d-%b-%Y") + ","
-                    
-            elif ('Credit' in text):                        
-                prt = prt + text + ""
+                prt[data] = textdt.strftime("%d-%b-%Y") + ","
             else:
                 text = text.replace(" (NGN)","")
                 text = text.replace(",","")
@@ -214,53 +236,74 @@ def process_fcmb(message):
                 text = text.replace('CASH LODGEMENT (CDP BY ',"")
                 text = text.replace('CASH LODGEMENT (CDB BY ',"")
                 text = text.replace(")","")                          
-                prt = prt + text + ","
-                process_nextline = 0
-        if ('Date/time' in text) or ('Description' in text) or ('Amount' in text) or ('Credit/Debit' in text):
-            process_nextline = 1
-                    
-    prt = prt +',' + bankname 
-    print (prt)
-            
+                prt[data] =  text + ","
+            process_nextline = 0
+    if prt:
+        prtt = prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname 
+        print (prtt)
+                            
 def process_stanbic(message):
     bankname = 'STANBIC'
     result = "Date,Description,Amount,Credit\n"
-    prt = ""
+    prt = {}
+    prt['Date'] = ""
+    prt['Amount'] = ""
+    prt['Name'] = ""
+    prt['Ref'] = ""
+    prt['Credit'] = ""
+    prtt = ""
     encoding = None
     soup = BeautifulSoup(message,'html.parser')
             
     process_nextline = 0
     for text in soup.stripped_strings:
         text = text.encode('ascii',errors='ignore')
+        
+        if ('Transaction Type' in text):
+            process_nextline = 1
+            data = 'Credit'
+            continue
+        
+        if ('Ref. Number' in text):
+            process_nextline = 1
+            data = 'Ref'
+            continue
+        
+        if ('Amount' in text):
+            process_nextline = 1
+            data = 'Amount'
+            continue
+        
+        if ('Description' in text):
+            process_nextline = 1
+            data = 'Name'
+            continue
+        
         if 'The following transaction took place on your account XXXXXX5014 on' in text:
+            data = 'Date'
             text = text.replace("The following transaction took place on your account XXXXXX5014 on","")
             text = text.replace("M:","M")
-            prt = prt + text + ","
+            prt[data] = text + ","
+            process_nextline = 0
+            continue
                 
         if process_nextline == 1:
-            if ('Transaction Type' in text):                        
-                prt = prt + text + ""
-            else:
-                text = text.replace("NGN ","")
-                text = text.replace(",","")
-                text = text.replace('TRANSFER (CSH DEPOSIT BY : ',"")
-                text = text.replace('TRANSFER (CSH DEPOSIT BY ',"")
-                text = text.replace('CASH LODGEMENT (CDP ',"")
-                text = text.replace('CASH LODGEMENT (CDB ',"")
-                text = text.replace('CASH LODGEMENT (CDP BY ',"")
-                text = text.replace('CASH LODGEMENT (CDB BY ',"")
+            text = text.replace("NGN ","")
+            text = text.replace(",","")
+            text = text.replace('TRANSFER (CSH DEPOSIT BY : ',"")
+            text = text.replace('TRANSFER (CSH DEPOSIT BY ',"")
+            text = text.replace('CASH LODGEMENT (CDP ',"")
+            text = text.replace('CASH LODGEMENT (CDB ',"")
+            text = text.replace('CASH LODGEMENT (CDP BY ',"")
+            text = text.replace('CASH LODGEMENT (CDB BY ',"")
                          
-                text = text.replace(")","")                          
-                prt = prt + text + ","
+            text = text.replace(")","")                          
+            prt[data] = text + ","
             process_nextline = 0
-        if ('Ref. Number' in text) or ('Description' in text) or ('Amount' in text) or ('Transaction Type' in text):
-            process_nextline = 1
-                    
-    prt = prt  + bankname 
-    print (prt)
-
-
-
+    if prt:
+        prtt = prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname + ',' + prt['Ref'] 
+        print (prtt)
+    
 def process_bank(message,bankname):
     if bankname == 'GTBANK':
         process_gtb(message)
@@ -268,8 +311,11 @@ def process_bank(message,bankname):
         process_fcmb(message)
     elif bankname == 'STANBIC':
         process_stanbic(message)
-
-
+    else:
+        print ('WRONG BANK NAME')
+        return
+    
+    
 def GetMimeMessage(service, user_id, msg_id,labelid,num,bankname):
     """Get a Message given id and use it to create a MIME Message.
 
