@@ -17,7 +17,7 @@ from sys import argv
 
 from dateutil.parser import parse
 from bs4 import BeautifulSoup
-
+import argparse
 
 """
  This program will process a mailbox named 'FIDO CREDIT'
@@ -26,6 +26,37 @@ from bs4 import BeautifulSoup
  
 
 """
+try:
+    import argparse
+    parser = argparse.ArgumentParser(description='Mailbox2csv for Transactions from Banks in Mailbox')
+    parser.add_argument('-b','--bank', help='Bank Name eg GTBANK or STANBIC or FCMB or STERLING', required=True)
+    args = vars(parser.parse_args())
+except ImportError:
+    parser = None
+
+    
+if args['bank'].upper() == 'GTBANK':
+    BANKNAME = 'GTBANK'
+    print ('processing ... ',args['bank'])
+    
+elif args['bank'].upper() == 'STANBIC':
+    BANKNAME = 'STANBIC'
+    print ('processing ... ',args['bank'])
+    
+elif args['bank'].upper() == 'FCMB':
+    BANKNAME = 'FCMB'
+    print ('processing ... ',args['bank'])
+    
+elif args['bank'].upper() == 'STERLING':
+    BANKNAME = 'STERLING'
+    print ('STERLING BANK NOT YET SUPPORTED')
+    raise SystemExit
+else:
+    print ('NOT YET SUPPORTED ',args['bank'])
+    raise SystemExit
+
+
+
 def is_date(string):
     try: 
         parse(string)
@@ -33,11 +64,6 @@ def is_date(string):
     except ValueError:
         return False
 
-try:
-    import argparse
-    flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
-except ImportError:
-    flags = None
 
 # If modifying these scopes, delete your previously saved credentials
 # at ~/.credentials/gmail-python-quickstart.json
@@ -52,9 +78,6 @@ detach_dir = '/var/goog_folders'
 if not os.path.exists(detach_dir):
     os.makedirs(detach_dir)
 
-#BANKNAME = 'GTBANK'
-#BANKNAME = 'FCMB'
-BANKNAME = 'GTBANK'
 
 OUTPUT_DIRECTORY = detach_dir
 SUBFOLDER = (datetime.today() - timedelta(days=1)).strftime("%Y%m%d") 
@@ -109,36 +132,10 @@ def get_credentials():
         print('Storing credentials to ' + credential_path)
     return credentials
 
-def GetMessage(service, user_id, msg_id,labelid,num):
-    """Get a Message with given ID.
-
-  Args:
-    service: Authorized Gmail API service instance.
-    user_id: User's email address. The special value "me"
-    can be used to indicate the authenticated user.
-    msg_id: The ID of the Message required.
-
-  Returns:
-    A Message.
-    """
-    try:
-        message = service.users().messages().get(userId=user_id, id=msg_id).execute()
-        print('Message snippet: %s' % message['snippet'])
-        OUTDIR = OUTPUT_DIRECTORY + '/' + SUBFOLDER
-        if SUBFOLDER not in os.listdir(OUTDIR):
-            os.mkdir(OUTDIR)
-        f = open('%s/%s.eml' %(OUTDIR, num), 'wb')
-        f.write(message['snippet'])
-        f.close()
-
-
-        return message
-    except errors.HttpError, error:
-        print('An error occurred: %s' % error)
 
 def process_gtb(message):
     bankname = 'GTBANK'
-    result = "Date,Description,Amount,Credit,BANK\n"
+    
     prt = {}
     prt['Date'] = ""
     prt['Amount'] = ""
@@ -183,7 +180,7 @@ def process_gtb(message):
             process_nextline = 1
             data = 'Name'
                       
-    if prt:
+    if prt['Date'] != "":
         prtt = prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname 
         print (prtt)
 
@@ -238,7 +235,7 @@ def process_fcmb(message):
                 text = text.replace(")","")                          
                 prt[data] =  text + ","
             process_nextline = 0
-    if prt:
+    if prt['Date'] != "":
         prtt = prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname 
         print (prtt)
                             
@@ -300,7 +297,7 @@ def process_stanbic(message):
             text = text.replace(")","")                          
             prt[data] = text + ","
             process_nextline = 0
-    if prt:
+    if prt['Date'] != "":
         prtt = prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname + ',' + prt['Ref'] 
         print (prtt)
     
@@ -339,7 +336,7 @@ def GetMimeMessage(service, user_id, msg_id,labelid,num,bankname):
         """
         
         msg_str = base64.urlsafe_b64decode(message['raw'].encode('ASCII'))
-        OUTDIR = OUTPUT_DIRECTORY + '/' + SUBFOLDER 
+        # OUTDIR = OUTPUT_DIRECTORY + '/' + SUBFOLDER 
         #if SUBFOLDER not in os.listdir(OUTPUT_DIRECTORY):
          #   os.mkdir(OUTDIR)
         #filename = OUTDIR + '/' + str(num) + '.eml'
@@ -360,16 +357,6 @@ def GetMimeMessage(service, user_id, msg_id,labelid,num,bankname):
         return mime_msg
     except errors.HttpError, error:
         print ('An error occurred: %s' % error)
-
-""" PROCES GTB MESSAGE """
-
-def is_date(string):
-    try: 
-        parse(string)
-        return True
-    except ValueError:
-        return False
-    
 
 def main():
     """Shows basic usage of the Gmail API.
