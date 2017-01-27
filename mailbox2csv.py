@@ -37,6 +37,7 @@ except ImportError:
     
 if args['bank'].upper() == 'GTBANK':
     BANKNAME = 'GTBANK'
+    
     print ('processing ... ',args['bank'])
     
 elif args['bank'].upper() == 'STANBIC':
@@ -55,6 +56,7 @@ else:
     print ('NOT YET SUPPORTED ',args['bank'])
     raise SystemExit
 
+FILENAME = BANKNAME + '_' + (datetime.today() - timedelta(days=1)).strftime("%Y%m%d") +'.csv'
 
 
 def is_date(string):
@@ -73,14 +75,14 @@ APPLICATION_NAME = 'Gmail API Python Quickstart'
 
 format = '%d-%b-%Y %H:%M:%S'
 EMAIL_FOLDER = "FIDO CREDIT"
-detach_dir = '/var/goog_folders'
+detach_dir = '/var/tmp/BANKS'
 
 if not os.path.exists(detach_dir):
     os.makedirs(detach_dir)
 
 
-OUTPUT_DIRECTORY = detach_dir
-SUBFOLDER = (datetime.today() - timedelta(days=1)).strftime("%Y%m%d") 
+OUTDIR = detach_dir
+ 
 MCOUNT = 1
 DATEAFTER = datetime.today() - timedelta(days=1)
 DATEAFTER = DATEAFTER.strftime("%Y/%m/%d")
@@ -181,8 +183,9 @@ def process_gtb(message):
             data = 'Name'
                       
     if prt['Date'] != "":
-        prtt = prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname 
+        prtt = prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname        
         print (prtt)
+        return prtt
 
 def process_fcmb(message):
     bankname = 'FCMB'
@@ -238,6 +241,9 @@ def process_fcmb(message):
     if prt['Date'] != "":
         prtt = prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname 
         print (prtt)
+        return prtt
+    else:
+        return "'','','',''" + bankname
                             
 def process_stanbic(message):
     bankname = 'STANBIC'
@@ -300,17 +306,24 @@ def process_stanbic(message):
     if prt['Date'] != "":
         prtt = prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname + ',' + prt['Ref'] 
         print (prtt)
+        return prtt
+    else:
+        return "'','','',''" + bankname + ', '
+    
     
 def process_bank(message,bankname):
     if bankname == 'GTBANK':
-        process_gtb(message)
+        prtt = process_gtb(message)
+        return prtt
     elif bankname == 'FCMB':
-        process_fcmb(message)
+        prtt = process_fcmb(message)
+        return prtt
     elif bankname == 'STANBIC':
-        process_stanbic(message)
+        prtt = process_stanbic(message)
+        return prtt
     else:
         print ('WRONG BANK NAME')
-        return
+        return ""
     
     
 def GetMimeMessage(service, user_id, msg_id,labelid,num,bankname):
@@ -347,14 +360,14 @@ def GetMimeMessage(service, user_id, msg_id,labelid,num,bankname):
             for payload in mime_msg.get_payload():
              #   print ('1 processing message %s',filename)        
                 # f.write(payload.get_payload(decode=1))
-                process_bank(payload.get_payload(decode=1),bankname)
+                prtt = process_bank(payload.get_payload(decode=1),bankname)
         else:
         #    print ('2. processing Message %s',filename)            
-            process_bank(mime_msg.get_payload(decode=1), bankname)
+            prtt = process_bank(mime_msg.get_payload(decode=1), bankname)
             
         #f.close()
 
-        return mime_msg
+        return prtt
     except errors.HttpError, error:
         print ('An error occurred: %s' % error)
 
@@ -371,6 +384,8 @@ def main():
     results = service.users().labels().list(userId='me').execute()
     labels = results.get('labels', [])
     num = 0
+    f = open('%s/%s' %(OUTDIR, FILENAME), 'wb')
+        
     if not labels:
         print('No labels found.')
     else:
@@ -395,7 +410,8 @@ def main():
                 for mesg in messages:
                     num = num + 1
                 #   GetMessage(service, "me", mesg['id'],num)
-                    GetMimeMessage(service, "me", mesg['id'],labelid,num,BANKNAME)
-            
+                    prtt = GetMimeMessage(service, "me", mesg['id'],labelid,num,BANKNAME)
+                    f.write(prtt + "\n")
+    f.close()        
 if __name__ == '__main__':
     main()
