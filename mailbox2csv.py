@@ -18,6 +18,7 @@ from sys import argv
 from dateutil.parser import parse
 from bs4 import BeautifulSoup
 import argparse
+import numpy
 
 """
  This program will process a mailbox named 'FIDO CREDIT'
@@ -57,8 +58,8 @@ else:
     raise SystemExit
 
 FILENAME = BANKNAME + '_' + (datetime.today() - timedelta(days=1)).strftime("%Y%m%d") +'.csv'
-
-
+TOTAMT = 0.0
+TITLE = 'SN,DATE,NAME,AMOUNT,CREDIT,BANK,REFNO'
 def is_date(string):
     try: 
         parse(string)
@@ -135,9 +136,9 @@ def get_credentials():
     return credentials
 
 
-def process_gtb(message):
+def process_gtb(message,num):
     bankname = 'GTBANK'
-    
+    global TOTAMT
     prt = {}
     prt['Date'] = ""
     prt['Amount'] = ""
@@ -183,12 +184,14 @@ def process_gtb(message):
             data = 'Name'
                       
     if prt['Date'] != "":
-        prtt = prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname        
+        prtt = str(num) + ','+  prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname
+        TOTAMT = TOTAMT + float(prt['Amount'].rstrip(','))        
         print (prtt)
         return prtt
 
-def process_fcmb(message):
+def process_fcmb(message,num):
     bankname = 'FCMB'
+    global TOTAMT
     result = "Date,Description,Amount,Credit,BANK\n"
     prt = {}
     prt['Date'] = ""
@@ -239,14 +242,16 @@ def process_fcmb(message):
                 prt[data] =  text + ","
             process_nextline = 0
     if prt['Date'] != "":
-        prtt = prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname 
-        print (prtt)
+        prtt = str(num) + ','+ prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname 
+        TOTAMT = TOTAMT + float(prt['Amount'].rstrip(','))
+        print (prtt)        
         return prtt
     else:
         return "'','','',''" + bankname
                             
-def process_stanbic(message):
+def process_stanbic(message,num):
     bankname = 'STANBIC'
+    global TOTAMT
     result = "Date,Description,Amount,Credit\n"
     prt = {}
     prt['Date'] = ""
@@ -300,26 +305,29 @@ def process_stanbic(message):
             text = text.replace('CASH LODGEMENT (CDP BY ',"")
             text = text.replace('CASH LODGEMENT (CDB BY ',"")
                          
-            text = text.replace(")","")                          
+            text = text.replace(")","")
             prt[data] = text + ","
             process_nextline = 0
     if prt['Date'] != "":
-        prtt = prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname + ',' + prt['Ref'] 
+        if 'FROM FIDO' in prt['Name']:
+            prt['Amount'] = '0,' 
+        prtt = str(num) + ',' + prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname + ',' + prt['Ref']
+        TOTAMT = TOTAMT + float(prt['Amount'].rstrip(',')) 
         print (prtt)
         return prtt
     else:
         return "'','','',''" + bankname + ', '
     
     
-def process_bank(message,bankname):
+def process_bank(message,bankname,num):
     if bankname == 'GTBANK':
-        prtt = process_gtb(message)
+        prtt = process_gtb(message,num)
         return prtt
     elif bankname == 'FCMB':
-        prtt = process_fcmb(message)
+        prtt = process_fcmb(message,num)
         return prtt
     elif bankname == 'STANBIC':
-        prtt = process_stanbic(message)
+        prtt = process_stanbic(message,num)
         return prtt
     else:
         print ('WRONG BANK NAME')
@@ -360,10 +368,10 @@ def GetMimeMessage(service, user_id, msg_id,labelid,num,bankname):
             for payload in mime_msg.get_payload():
              #   print ('1 processing message %s',filename)        
                 # f.write(payload.get_payload(decode=1))
-                prtt = process_bank(payload.get_payload(decode=1),bankname)
+                prtt = process_bank(payload.get_payload(decode=1),bankname,num)
         else:
         #    print ('2. processing Message %s',filename)            
-            prtt = process_bank(mime_msg.get_payload(decode=1), bankname)
+            prtt = process_bank(mime_msg.get_payload(decode=1), bankname,num)
             
         #f.close()
 
@@ -385,7 +393,8 @@ def main():
     labels = results.get('labels', [])
     num = 0
     f = open('%s/%s' %(OUTDIR, FILENAME), 'wb')
-        
+    f.write(TITLE + "\n")
+    print(TITLE)
     if not labels:
         print('No labels found.')
     else:
@@ -412,6 +421,7 @@ def main():
                 #   GetMessage(service, "me", mesg['id'],num)
                     prtt = GetMimeMessage(service, "me", mesg['id'],labelid,num,BANKNAME)
                     f.write(prtt + "\n")
-    f.close()        
+    f.close()
+    print('TOTAL AMOUNT',TOTAMT)        
 if __name__ == '__main__':
     main()
