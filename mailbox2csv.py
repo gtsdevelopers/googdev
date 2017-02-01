@@ -19,6 +19,8 @@ from dateutil.parser import parse
 from bs4 import BeautifulSoup
 import argparse
 import numpy
+from docutils.parsers import null
+from time import strftime
 
 """
  This program will process a mailbox named 'FIDO CREDIT'
@@ -85,6 +87,10 @@ if not os.path.exists(detach_dir):
 OUTDIR = detach_dir
  
 MCOUNT = 1
+TOD = datetime.today()
+STODAY = TOD.strftime('%d-%b-%Y')
+TODAY = datetime.strptime(STODAY,'%d-%b-%Y')
+DAY = TODAY.strftime('%d')
 DATEAFTER = datetime.today() - timedelta(days=1)
 DATEAFTER = DATEAFTER.strftime("%Y/%m/%d")
 DATEAFTER = ' after:' + DATEAFTER
@@ -164,7 +170,7 @@ def process_gtb(message,num):
             text = text.replace('CASH LODGEMENT (CDP ',"")
                          
             text = text.replace(")","")
-            prt[data] = text + ","                          
+            prt[data] = text                           
             process_nextline = 0
                     
         if ('Description' in text):
@@ -183,11 +189,19 @@ def process_gtb(message,num):
             process_nextline = 1
             data = 'Name'
                       
-    if prt['Date'] != "":
-        prtt = str(num) + ','+  prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname
-        TOTAMT = TOTAMT + float(prt['Amount'].rstrip(','))        
-        print (prtt)
-        return prtt
+    if is_date(prt['Date']) and prt['Date'] != "": 
+        
+        prtr = datetime.strptime(prt['Date'],'%d-%b-%Y')
+        
+        if prtr == TODAY:
+            prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
+            TOTAMT = TOTAMT + float(prt['Amount'])        
+            print (prtt)
+            return prtt
+        else:
+            return None
+    else:
+        return None
 
 def process_fcmb(message,num):
     bankname = 'FCMB'
@@ -228,7 +242,7 @@ def process_fcmb(message,num):
         if process_nextline == 1:
             if is_date(text):
                 textdt = datetime.strptime(text,format)
-                prt[data] = textdt.strftime("%d-%b-%Y") + ","
+                prt[data] = textdt.strftime("%d-%b-%Y") 
             else:
                 text = text.replace(" (NGN)","")
                 text = text.replace(",","")
@@ -239,15 +253,21 @@ def process_fcmb(message,num):
                 text = text.replace('CASH LODGEMENT (CDP BY ',"")
                 text = text.replace('CASH LODGEMENT (CDB BY ',"")
                 text = text.replace(")","")                          
-                prt[data] =  text + ","
+                prt[data] =  text 
             process_nextline = 0
     if prt['Date'] != "":
-        prtt = str(num) + ','+ prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname 
-        TOTAMT = TOTAMT + float(prt['Amount'].rstrip(','))
-        print (prtt)        
-        return prtt
+        
+        prtr = datetime.strptime(prt['Date'],'%d-%b-%Y')
+        
+        if prtr == TODAY:
+            prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
+            TOTAMT = TOTAMT + float(prt['Amount'])        
+            print (prtt)
+            return prtt
+        else:
+            return None
     else:
-        return "'','','',''" + bankname
+        return None
                             
 def process_stanbic(message,num):
     bankname = 'STANBIC'
@@ -291,7 +311,7 @@ def process_stanbic(message,num):
             data = 'Date'
             text = text.replace("The following transaction took place on your account XXXXXX5014 on","")
             text = text.replace("M:","M")
-            prt[data] = text + ","
+            prt[data] = text 
             process_nextline = 0
             continue
                 
@@ -306,19 +326,28 @@ def process_stanbic(message,num):
             text = text.replace('CASH LODGEMENT (CDB BY ',"")
                          
             text = text.replace(")","")
-            prt[data] = text + ","
+            prt[data] = text 
             process_nextline = 0
     if prt['Date'] != "":
-        if 'FROM FIDO' in prt['Name']:
-            prt['Amount'] = '0,' 
-        prtt = str(num) + ',' + prt['Date']  + prt['Name'] + prt['Amount'] + prt['Credit'] + bankname + ',' + prt['Ref']
-        TOTAMT = TOTAMT + float(prt['Amount'].rstrip(',')) 
-        print (prtt)
-        return prtt
+        if ('FIDO PRODUCING' in prt['Name']) or ('Fido Producing' in prt['Name']):
+            prt['Amount'] = '0' 
+            
+        prtd = prt['Date'].lstrip()
+        prta = datetime.strptime(prtd,'%m/%d/%Y %H:%M:%S %p')
+        
+        prtd = prta.strftime('%d-%b-%Y')
+        prtr = datetime.strptime(prtd,'%d-%b-%Y')
+        
+        if prtr == TODAY:
+            prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
+            TOTAMT = TOTAMT + float(prt['Amount'])        
+            print (prtt)
+            return prtt
+        else:
+            return None
     else:
-        return "'','','',''" + bankname + ', '
-    
-    
+        return None
+
 def process_bank(message,bankname,num):
     if bankname == 'GTBANK':
         prtt = process_gtb(message,num)
@@ -420,7 +449,8 @@ def main():
                     num = num + 1
                 #   GetMessage(service, "me", mesg['id'],num)
                     prtt = GetMimeMessage(service, "me", mesg['id'],labelid,num,BANKNAME)
-                    f.write(prtt + "\n")
+                    if prtt != None:
+                        f.write(prtt + "\n")
     f.close()
     print('TOTAL AMOUNT',TOTAMT)        
 if __name__ == '__main__':
