@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from apiclient import errors
 from sys import argv
 
+import dateutil.parser
 from dateutil.parser import parse
 from bs4 import BeautifulSoup
 import argparse
@@ -53,8 +54,8 @@ elif args['bank'].upper() == 'FCMB':
     
 elif args['bank'].upper() == 'STERLING':
     BANKNAME = 'STERLING'
-    print ('STERLING BANK NOT YET SUPPORTED')
-    raise SystemExit
+    print ('processing ... ',args['bank'])
+
 else:
     print ('NOT YET SUPPORTED ',args['bank'])
     raise SystemExit
@@ -112,6 +113,9 @@ elif BANKNAME == 'STANBIC':
     QUERYSTMT = 'label:fido-credit from:(StanbicIBTC-E-Alert@stanbic.com) (Transaction Type Credit) -Debit '
     QUERYSTMT = QUERYSTMT + DATEAFTER + DATEBEFORE 
 
+elif BANKNAME == 'STERLING':
+    QUERYSTMT = 'label:fido-credit subject:(CREDIT ALERT ON (00632XXXX4))'
+    QUERYSTMT = QUERYSTMT + DATEAFTER + DATEBEFORE 
 
 def get_credentials():
     """Gets valid user credentials from storage.
@@ -348,6 +352,85 @@ def process_stanbic(message,num):
     else:
         return None
 
+def process_sterling(message,num):
+    bankname = 'STERLING'
+    global TOTAMT
+    prt = {}
+    prt['Date'] = ""
+    prt['Amount'] = ""
+    prt['Name'] = ""    
+    prt['Credit'] = ""
+    prtt = ""    
+    encoding = None
+    soup = BeautifulSoup(message,'html.parser')
+                    
+    process_nextline = 0
+    for text in soup.stripped_strings:
+        text = text.encode('ascii',errors='ignore')
+        
+        if ('Deposit Cash (Local Currency)' in text) or  ('Transfer In' in text):
+            process_nextline = 1
+            data = 'Name'
+            continue
+        if ('Transaction Date' in text):
+            process_nextline = 1
+            data = 'Date'
+            continue
+        
+        if ('Amount' in text):
+            process_nextline = 1
+            data = 'Amount'
+            continue
+        
+        if ('Remarks' in text):
+            process_nextline = 0
+            data = 'Name'
+            
+            continue
+                
+        if process_nextline == 1:            
+            text = text.replace("NGN ","")
+            text = text.replace(",","")
+            text = text.replace('TRANSFER (CSH DEPOSIT BY : ',"")
+            text = text.replace('DEP BY ',"")
+            text = text.replace('CASH LODGEMENT (CDP ',"")
+            text = text.replace('CASH LODGEMENT (CDB ',"")
+            text = text.replace('CASH LODGEMENT (CDP BY ',"")
+            text = text.replace('CASH LODGEMENT (CDB BY ',"")
+                         
+            text = text.replace(")","")
+            prt[data] = text 
+            process_nextline = 0
+    if prt['Date'] != "":
+            
+        prtdd = prt['Date'].lstrip()
+        prtd = dateutil.parser.parse(prtdd)
+        
+        prtdd = prtd.strftime('%d-%b-%Y')
+        prtr = datetime.strptime(prtdd,'%d-%b-%Y')
+        prt['Date'] = prtdd
+        
+        """
+        for Historical Data not just today        
+     
+        prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
+        TOTAMT = TOTAMT + float(prt['Amount'])        
+        print (prtt)
+        return prtt
+        """
+        
+        if prtr == TODAY:
+            prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
+            TOTAMT = TOTAMT + float(prt['Amount'])        
+            print (prtt)
+            return prtt
+        else:
+            return None
+    else:
+        return None
+
+
+
 def process_bank(message,bankname,num):
     if bankname == 'GTBANK':
         prtt = process_gtb(message,num)
@@ -358,6 +441,10 @@ def process_bank(message,bankname,num):
     elif bankname == 'STANBIC':
         prtt = process_stanbic(message,num)
         return prtt
+    elif bankname == 'STERLING':
+        prtt = process_sterling(message,num)
+        return prtt
+
     else:
         print ('WRONG BANK NAME')
         return ""
