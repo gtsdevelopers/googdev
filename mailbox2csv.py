@@ -34,10 +34,16 @@ try:
     import argparse
     parser = argparse.ArgumentParser(description='Mailbox2csv for Transactions from Banks in Mailbox')
     parser.add_argument('-b','--bank', help='Bank Name eg GTBANK or STANBIC or FCMB or STERLING', required=True)
+    parser.add_argument('-e','--extended', help='-e 1 is optional and allows to process not only today transactions', required=False)
+    
     args = vars(parser.parse_args())
 except ImportError:
     parser = None
 
+if args['extended'] == '1':
+    EXTENDED = True
+else:
+    EXTENDED = False
     
 if args['bank'].upper() == 'GTBANK':
     BANKNAME = 'GTBANK'
@@ -92,7 +98,7 @@ TOD = datetime.today()
 STODAY = TOD.strftime('%d-%b-%Y')
 TODAY = datetime.strptime(STODAY,'%d-%b-%Y')
 DAY = TODAY.strftime('%d')
-DATEAFTER = datetime.today() - timedelta(days=1)
+DATEAFTER = datetime.today() - timedelta(days=6)
 DATEAFTER = DATEAFTER.strftime("%Y/%m/%d")
 DATEAFTER = ' after:' + DATEAFTER
 print('Date after is %s' % DATEAFTER)
@@ -197,6 +203,13 @@ def process_gtb(message,num):
         
         prtr = datetime.strptime(prt['Date'],'%d-%b-%Y')
         
+        if EXTENDED:
+            prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
+            TOTAMT = TOTAMT + float(prt['Amount'])        
+            print (prtt)
+            return prtt
+        
+        
         if prtr == TODAY:
             prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
             TOTAMT = TOTAMT + float(prt['Amount'])        
@@ -263,7 +276,14 @@ def process_fcmb(message,num):
         
         prtr = datetime.strptime(prt['Date'],'%d-%b-%Y')
         
+        if EXTENDED:
+            prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
+            TOTAMT = TOTAMT + float(prt['Amount'])        
+            print (prtt)
+            return prtt
+            
         if prtr == TODAY:
+           
             prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
             TOTAMT = TOTAMT + float(prt['Amount'])        
             print (prtt)
@@ -333,14 +353,22 @@ def process_stanbic(message,num):
             prt[data] = text 
             process_nextline = 0
     if prt['Date'] != "":
-        if ('FIDO PRODUCING' in prt['Name']) or ('Fido Producing' in prt['Name']):
+        if ('FIDO PRODUCING' in prt['Name']) or ('Fido Producing' in 
+                                                 prt['Name']) or ('REV ' in prt['Name']):
             prt['Amount'] = '0' 
             
         prtd = prt['Date'].lstrip()
-        prta = datetime.strptime(prtd,'%m/%d/%Y %H:%M:%S %p')
-        
+        prta = dateutil.parser.parse(prtd)
         prtd = prta.strftime('%d-%b-%Y')
         prtr = datetime.strptime(prtd,'%d-%b-%Y')
+        
+        prt['Date'] = prtd
+        
+        if EXTENDED:
+            prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
+            TOTAMT = TOTAMT + float(prt['Amount'])        
+            print (prtt)
+            return prtt
         
         if prtr == TODAY:
             prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
@@ -418,6 +446,11 @@ def process_sterling(message,num):
         print (prtt)
         return prtt
         """
+        if EXTENDED:
+            prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
+            TOTAMT = TOTAMT + float(prt['Amount'])        
+            print (prtt)
+            return prtt
         
         if prtr == TODAY:
             prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
