@@ -85,6 +85,7 @@ APPLICATION_NAME = 'Gmail API Python Quickstart'
 
 format = '%d-%b-%Y %H:%M:%S'
 EMAIL_FOLDER = "FIDO CREDIT"
+# EMAIL_FOLDER = "Inbox"
 detach_dir = '/var/tmp/BANKS'
 
 if not os.path.exists(detach_dir):
@@ -98,7 +99,7 @@ TOD = datetime.today()
 STODAY = TOD.strftime('%d-%b-%Y')
 TODAY = datetime.strptime(STODAY,'%d-%b-%Y')
 DAY = TODAY.strftime('%d')
-DATEAFTER = datetime.today() - timedelta(days=6)
+DATEAFTER = datetime.today() - timedelta(days=1)
 DATEAFTER = DATEAFTER.strftime("%Y/%m/%d")
 DATEAFTER = ' after:' + DATEAFTER
 print('Date after is %s' % DATEAFTER)
@@ -116,7 +117,7 @@ elif BANKNAME == 'FCMB':
     QUERYSTMT = QUERYSTMT + DATEAFTER + DATEBEFORE
  
 elif BANKNAME == 'STANBIC':
-    QUERYSTMT = 'label:fido-credit from:(StanbicIBTC-E-Alert@stanbic.com) (Transaction Type Credit) -Debit '
+    QUERYSTMT = 'from:(StanbicIBTC-E-Alert@stanbic.com) Credit Alert'
     QUERYSTMT = QUERYSTMT + DATEAFTER + DATEBEFORE 
 
 elif BANKNAME == 'STERLING':
@@ -305,38 +306,45 @@ def process_stanbic(message,num):
     prt['Credit'] = ""
     prtt = ""
     encoding = None
+    # print (message)
+    message = '<html>' + message + '</html>'
     soup = BeautifulSoup(message,'html.parser')
-            
+    
+    
     process_nextline = 0
     for text in soup.stripped_strings:
         text = text.encode('ascii',errors='ignore')
-        
-        if ('Transaction Type' in text):
-            process_nextline = 1
+        if ('Credit Alert' in text):
+            process_nextline = 0
             data = 'Credit'
+            text = text.replace("Alert on XXXXXX5014","")
+            
+            prt[data] = text
+            data = 'Name'
+            process_nextline = 1
             continue
         
-        if ('Ref. Number' in text):
+        if ('Transaction Ref' in text):
             process_nextline = 1
             data = 'Ref'
             continue
         
-        if ('Amount' in text):
-            process_nextline = 1
-            data = 'Amount'
-            continue
         
-        if ('Description' in text):
-            process_nextline = 1
-            data = 'Name'
-            continue
-        
-        if 'The following transaction took place on your account XXXXXX5014 on' in text:
-            data = 'Date'
-            text = text.replace("The following transaction took place on your account XXXXXX5014 on","")
-            text = text.replace("M:","M")
-            prt[data] = text 
+        if ('NGN' in text) and ('Current Balance' not in text):
+            text = text.replace("NGN ","")
+            text = text.replace(",","")
             process_nextline = 0
+            data = 'Amount'
+            prt[data] = text 
+            continue
+        
+        if 'Transaction Date' in text:
+            data = 'Date'
+           # text = text.replace("The following transaction took place on your account XXXXXX5014 on","")
+           # text = text.replace("M:","M")
+            # prt[data] = text 
+           # process_nextline = 0
+            process_nextline = 1
             continue
                 
         if process_nextline == 1:
@@ -352,12 +360,14 @@ def process_stanbic(message,num):
             text = text.replace(")","")
             prt[data] = text 
             process_nextline = 0
+    
     if prt['Date'] != "":
-        if ('FIDO PRODUCING' in prt['Name']) or ('Fido Producing' in 
-                                                 prt['Name']) or ('REV ' in prt['Name']):
-            prt['Amount'] = '0' 
-            
-        prtd = prt['Date'].lstrip()
+    
+        if ('FIDO PRODUCING'.lower() in prt['Name'].lower()) or ('REV' in prt['Name']) or ('INTERSWITCHNG' in prt['Name']):
+            prt['Amount'] = '0'
+        
+        
+        prtd = prt['Date']
         prta = dateutil.parser.parse(prtd)
         prtd = prta.strftime('%d-%b-%Y')
         prtr = datetime.strptime(prtd,'%d-%b-%Y')
@@ -369,7 +379,7 @@ def process_stanbic(message,num):
             TOTAMT = TOTAMT + float(prt['Amount'])        
             print (prtt)
             return prtt
-        
+        print ('Today is ',TODAY, 'prtr is ', prtr)
         if prtr == TODAY:
             prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
             TOTAMT = TOTAMT + float(prt['Amount'])        
