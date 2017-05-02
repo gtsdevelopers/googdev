@@ -66,7 +66,11 @@ else:
     print ('NOT YET SUPPORTED ',args['bank'])
     raise SystemExit
 
-FILENAME = BANKNAME + '_' + (datetime.today() - timedelta(days=1)).strftime("%Y%m%d") +'.csv'
+FILENAME = BANKNAME + '_' + (datetime.today() ).strftime("%Y%m%d") +'.csv'
+FILETXT = BANKNAME + '_' + (datetime.today() ).strftime("%Y%m%d") +'.txt'
+# FILENAME = BANKNAME + '_' + (datetime.today() - timedelta(days=1)).strftime("%Y%m%d") +'.csv'
+ALLTXT = BANKNAME + '_'  +'ALL.txt'
+
 TOTAMT = 0.0
 TITLE = 'SN,DATE,NAME,AMOUNT,CREDIT,BANK,REFNO'
 def is_date(string):
@@ -86,20 +90,24 @@ APPLICATION_NAME = 'Gmail API Python Quickstart'
 format = '%d-%b-%Y %H:%M:%S'
 EMAIL_FOLDER = "FIDO CREDIT"
 # EMAIL_FOLDER = "Inbox"
-detach_dir = '/var/tmp/BANKS'
+detach_dir = '/var/www/tellers/BANKS'
+detach_dir_txt = '/var/www/tellers/BANKS/TXT'
 
 if not os.path.exists(detach_dir):
     os.makedirs(detach_dir)
+if not os.path.exists(detach_dir_txt):
+    os.makedirs(detach_dir_txt)
 
 
 OUTDIR = detach_dir
- 
+OUTDIRTXT = detach_dir_txt
+
 MCOUNT = 1
 TOD = datetime.today()
 STODAY = TOD.strftime('%d-%b-%Y')
 TODAY = datetime.strptime(STODAY,'%d-%b-%Y')
 DAY = TODAY.strftime('%d')
-DATEAFTER = datetime.today() - timedelta(days=1)
+DATEAFTER = datetime.today() - timedelta(days=3)
 DATEAFTER = DATEAFTER.strftime("%Y/%m/%d")
 DATEAFTER = ' after:' + DATEAFTER
 print('Date after is %s' % DATEAFTER)
@@ -173,16 +181,6 @@ def process_gtb(message,num):
         if process_nextline == 1 and (text == ':'):
             process_nextline = 2
             continue
-        if process_nextline == 2:
-            text = text.replace("NGN ","")
-            text = text.replace(",","")
-            text = text.replace('CASH DEPOSIT',"CREDIT")
-            text = text.replace('TRANSFER (CSH DEPOSIT BY ',"")
-            text = text.replace('CASH LODGEMENT (CDP ',"")
-                         
-            text = text.replace(")","")
-            prt[data] = text                           
-            process_nextline = 0
                     
         if ('Description' in text):
             process_nextline = 1
@@ -199,6 +197,17 @@ def process_gtb(message,num):
         if ('Remarks' in text):
             process_nextline = 1
             data = 'Name'
+        if process_nextline == 2:
+            text = text.replace("NGN ","")
+            text = text.replace(",","")
+            text = text.replace('CASH DEPOSIT',"CREDIT")
+            text = text.replace('TRANSFER (CSH DEPOSIT BY ',"")
+            text = text.replace('CASH LODGEMENT (CDP ',"")
+                         
+            text = text.replace(")","")
+            prt[data] = text                           
+            process_nextline = 0
+        
                       
     if is_date(prt['Date']) and prt['Date'] != "": 
         
@@ -297,7 +306,7 @@ def process_fcmb(message,num):
 def process_stanbic(message,num):
     bankname = 'STANBIC'
     global TOTAMT
-    result = "Date,Description,Amount,Credit\n"
+    result = "Date,Description,Amount,Credit,Bank,Refno\n"
     prt = {}
     prt['Date'] = ""
     prt['Amount'] = ""
@@ -309,56 +318,52 @@ def process_stanbic(message,num):
     # print (message)
     message = '<html>' + message + '</html>'
     soup = BeautifulSoup(message,'html.parser')
-    
-    
+     
     process_nextline = 0
     for text in soup.stripped_strings:
         text = text.encode('ascii',errors='ignore')
-        if ('Credit Alert' in text):
-            process_nextline = 0
+        
+        if ('Debit Alert' in text):
+            return None
+        
+        if ('Credit alert' in text):
             data = 'Credit'
-            text = text.replace("Alert on XXXXXX5014","")
+            text = text.replace(" alert on XXXXXX5014","")
             
             prt[data] = text
             data = 'Name'
             process_nextline = 1
             continue
-        
-        if ('Transaction Ref' in text):
-            process_nextline = 1
-            data = 'Ref'
-            continue
-        
-        
-        if ('NGN' in text) and ('Current Balance' not in text):
-            text = text.replace("NGN ","")
-            text = text.replace(",","")
-            process_nextline = 0
+            
+        if ('Dear FIDO PRODUCING' in text):
             data = 'Amount'
-            prt[data] = text 
+            process_nextline = 1
             continue
         
-        if 'Transaction Date' in text:
+        if 'This transaction took' in text:
             data = 'Date'
-           # text = text.replace("The following transaction took place on your account XXXXXX5014 on","")
-           # text = text.replace("M:","M")
-            # prt[data] = text 
-           # process_nextline = 0
+            process_nextline = 1
+            continue
+        
+        if 'Transaction Reference' in text:
+            data = 'Ref'
             process_nextline = 1
             continue
                 
         if process_nextline == 1:
-            text = text.replace("NGN ","")
-            text = text.replace(",","")
-            text = text.replace('TRANSFER (CSH DEPOSIT BY : ',"")
-            text = text.replace('TRANSFER (CSH DEPOSIT BY ',"")
-            text = text.replace('CASH LODGEMENT (CDP ',"")
-            text = text.replace('CASH LODGEMENT (CDB ',"")
-            text = text.replace('CASH LODGEMENT (CDP BY ',"")
-            text = text.replace('CASH LODGEMENT (CDB BY ',"")
-                         
-            text = text.replace(")","")
-            prt[data] = text 
+            if data == 'Name':
+                text = text.replace('Description: ',"")
+                prt[data] = text
+    
+            if data == 'Date':
+                prt[data] = text
+            if data == 'Ref':
+                prt[data] = text
+            if data == 'Amount':
+                text = text.replace("NGN ","")
+                text = text.replace(",","")
+                prt[data] = text
+                
             process_nextline = 0
     
     if prt['Date'] != "":
@@ -375,13 +380,12 @@ def process_stanbic(message,num):
         prt['Date'] = prtd
         
         if EXTENDED:
-            prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
+            prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ','  +bankname+ ',' +prt['Ref'] 
             TOTAMT = TOTAMT + float(prt['Amount'])        
             print (prtt)
             return prtt
-        print ('Today is ',TODAY, 'prtr is ', prtr)
         if prtr == TODAY:
-            prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit'] + ',' + bankname
+            prtt = str(num) + ','+  prt['Date'] + ','  + prt['Name'] + ',' + prt['Amount'] + ',' + prt['Credit']  +',' + bankname+ ','+ prt['Ref']
             TOTAMT = TOTAMT + float(prt['Amount'])        
             print (prtt)
             return prtt
@@ -552,7 +556,11 @@ def main():
     labels = results.get('labels', [])
     num = 0
     f = open('%s/%s' %(OUTDIR, FILENAME), 'wb')
+    ft = open('%s/%s' %(OUTDIRTXT, FILETXT), 'wb')
+    fall = open('%s/%s' % (OUTDIRTXT, ALLTXT), 'a')
+
     f.write(TITLE + "\n")
+    ft.write(TITLE + "\n")
     print(TITLE)
     if not labels:
         print('No labels found.')
@@ -581,7 +589,11 @@ def main():
                     prtt = GetMimeMessage(service, "me", mesg['id'],labelid,num,BANKNAME)
                     if prtt != None:
                         f.write(prtt + "\n")
+                        ft.write(prtt + "\n")
+                        fall.write(prtt + "\n")
     f.close()
+    ft.close()
+    fall.close()
     print('TOTAL AMOUNT',TOTAMT)        
 if __name__ == '__main__':
     main()
